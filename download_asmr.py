@@ -114,7 +114,7 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
         解析后的命令行参数对象。
     """
     parser = argparse.ArgumentParser(description="从 asmr.one 获取音声作品的元数据和文件清单，并下载到指定目录。")
-    parser.add_argument("rj_id", type=int, help="音声的 RJ 号。例如网址为 https://www.dlsite.com/maniax/work/=/product_id/RJ285384.html，则 RJ 号为 285384")
+    parser.add_argument("rj_id", type=str, help="音声的 RJ 号。例如网址为 https://www.dlsite.com/maniax/work/=/product_id/RJ285384.html，则 RJ 号为 285384")
     parser.add_argument("-e", "--endpoint", type=str, default="https://api.asmr-200.com", help="下载的镜像站点，默认为 %(default)s")
     parser.add_argument("-o", "--output-path", type=pathlib.Path, help="音声保存路径，默认为: 当前目录 / work / '{TITLE} [{RJ_ID}] [{circle_name}]'，其中 TITLE 为音声标题，RJ_ID 为音声 RJ 号，circle_name 为社团名称")
     parser.add_argument("-d", "--doh-url", type=str, default="https://v.recipes/dns-query", help="DoH URL，默认为 %(default)s")
@@ -125,6 +125,11 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument("-v", "--detail", action="store_true", help="在询问要下载的文件时，显示文件大小和音频时长等详细信息")
     return parser.parse_args(args)
 
+def extract_trailing_number(code: str) -> int:
+    match = re.search(r"(\d+)$", code)
+    if not match:
+        raise ValueError(f"No trailing digits found in {code!r}")
+    return int(match.group(1))
 
 def main(args: argparse.Namespace):
     # 如果未指定 curl_path，则尝试使用 shutil.which 查找系统中的 curl 命令。
@@ -145,8 +150,10 @@ def main(args: argparse.Namespace):
     # 使用 partial 函数预设参数，方便后续调用
     fast_curl = partial(request_by_curl, curl_path=curl_path, doh_url=args.doh_url, proxy=args.proxy, timeout=args.timeout)
 
+    rj_id = extract_trailing_number(args.rj_id)
+    
     # 获取音声信息
-    work_info = orjson.loads(fast_curl(f"{args.endpoint}/api/workInfo/{args.rj_id}"))
+    work_info = orjson.loads(fast_curl(f"{args.endpoint}/api/workInfo/{rj_id}"))
 
     # 打印音声信息
     print("音声信息:")
@@ -161,31 +168,12 @@ def main(args: argparse.Namespace):
     # 获取音声目录结构
     directory = {
         "type": "folder",
-        "children": orjson.loads(fast_curl(f"{args.endpoint}/api/tracks/{args.rj_id}?v=2"))
+        "children": orjson.loads(fast_curl(f"{args.endpoint}/api/tracks/{rj_id}?v=2"))
     }
 
     # 将目录结构转换为文件列表
     files = convert_directory_to_files(directory)
-
-    # 获取文本编辑器
-    if args.editor_path:
-        editor_path = args.editor_path
-
-        # 检测编辑器是否存在
-        if not editor_path.exists() or not editor_path.is_file():
-            raise FileNotFoundError(f"编辑器`{editor_path}`不存在或不是一个文件。请检查路径是否正确。")
-    else:
-        # 尝试使用系统默认的文本编辑器
-        if editor_path := shutil.which("notepad"):
-            pass
-        elif editor_path := shutil.which("gedit"):
-            pass
-        else:
-            raise FileNotFoundError("未找到可用的文本编辑器，请指定 --editor-path 参数。")
-
-        # 确保编辑器路径是 pathlib.Path 对象
-        editor_path = pathlib.Path(editor_path)
-
+    
     with tempfile.TemporaryDirectory() as temp_dir:
         # 将文件列表写入临时文件，然后打开notepad编辑，以询问哪个文件需要下载（像git commit一样）
         temp_file_path = pathlib.Path(temp_dir) / f"asmr_one_download_{args.rj_id}.txt"
@@ -214,9 +202,6 @@ def main(args: argparse.Namespace):
         # 创建临时文件并写入内容
         with open(temp_file_path, "w", encoding="utf-8") as temp_file:
             temp_file.write(content.getvalue())
-
-        # 打开临时文件以供用户编辑
-        subprocess.run([str(editor_path), str(temp_file_path)], check=True)
 
         # 读取用户选择的文件列表
         with open(temp_file_path, "r", encoding="utf-8") as temp_file:
