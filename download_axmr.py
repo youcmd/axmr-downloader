@@ -334,9 +334,8 @@ def main(args: argparse.Namespace):
             finally:
                 # 将下载的文件移动到输出路径
                 # shutil.move(download_temp_file, file_output_path)
-                aria2c(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
                 print(file_output_path)
-
+    aria2c(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
 
 if __name__ == "__main__":
     main(parse_args())
