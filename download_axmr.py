@@ -106,7 +106,7 @@ def aria2c(
     # If save path is provided
     if save_to_file is not None:
         # cmd.extend(["--out="+temp_save_to_file, "--continue=true"])
-        cmd.extend(["--out="+temp_save_to_file], "-c")
+        cmd.extend(["--out="+temp_save_to_file, "-c"])
     else:
         # Aria2c cannot stream to stdout directly like curl
         raise ValueError("aria2c does not support stdout output (-o -). Please provide a file path.")
@@ -232,7 +232,7 @@ def main(args: argparse.Namespace):
         "children": orjson.loads(fast_curl(f"{args.endpoint}/api/tracks/{rj_id}?v=2"))
     }
 
-    fast_curl(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
+    # aria2c(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
     
     # 将目录结构转换为文件列表
     files = convert_directory_to_files(directory)
@@ -334,6 +334,7 @@ def main(args: argparse.Namespace):
             finally:
                 # 将下载的文件移动到输出路径
                 # shutil.move(download_temp_file, file_output_path)
+                aria2c(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
                 print(file_output_path)
 
 
