@@ -72,8 +72,67 @@ def request_by_curl(
     # 如果提供了额外的 curl 参数，则添加到命令中
     if args:
         cmd.extend(args)
+    
+    print(cmd)
 
     # 执行 curl 命令并返回输出
+    return subprocess.check_output(cmd)
+
+def aria2c(
+    url: str,
+    doh_url: Optional[str] = None,
+    save_to_file: Optional[pathlib.Path] = None,
+    show_progress: bool = False,
+    proxy: Optional[str] = None,
+    timeout: Optional[float] = None,
+    args: Optional[list[str]] = None
+) -> bytes:
+
+    aria2c_path = shutil.which("aria2c")
+    
+    if not aria2c_path:
+        raise FileNotFoundError("aria2c not found in system PATH")
+    
+    # download_dir = "/tmp"
+    # temp_save_to_file = str(save_to_file).replace("/tmp/", "")
+    temp_save_to_file = str(save_to_file)
+    
+    cmd = [aria2c_path, "-x 8","--auto-file-renaming=false"]
+
+    # If DoH URL is specified
+    if doh_url:
+        cmd.extend(["--doh-server="+doh_url])
+
+    # If save path is provided
+    if save_to_file is not None:
+        # cmd.extend(["--out="+temp_save_to_file, "--continue=true"])
+        cmd.extend(["--out="+temp_save_to_file], "-c")
+    else:
+        # Aria2c cannot stream to stdout directly like curl
+        raise ValueError("aria2c does not support stdout output (-o -). Please provide a file path.")
+
+    # Progress display settings
+    if show_progress:
+        cmd.append("--summary-interval=1")  # Frequent progress updates
+    else:
+        cmd.append("--quiet=true")  # Suppress all output
+
+    # Proxy settings
+    if proxy:
+        cmd.extend(["--all-proxy="+proxy])
+
+    # Timeout setting
+    if timeout:
+        cmd.extend(["--connect-timeout="+str(timeout)])
+
+    # Add additional args
+    if args:
+        cmd.extend(args)
+
+    cmd.append(url)
+
+    print(cmd)
+
     return subprocess.check_output(cmd)
 
 
@@ -163,6 +222,7 @@ def main(args: argparse.Namespace):
             print(f"{key}: {value}")
     print()
 
+
     # 设置输出路径
     output_path = args.output_path or pathlib.Path.cwd() / f"work/{work_info['title']} [{work_info['id']}] [{work_info['name']}]"
 
@@ -172,6 +232,8 @@ def main(args: argparse.Namespace):
         "children": orjson.loads(fast_curl(f"{args.endpoint}/api/tracks/{rj_id}?v=2"))
     }
 
+    fast_curl(f"{args.endpoint}/api/cover/{rj_id}.jpg?type=main",save_to_file=f"{output_path}/cover.jpg")
+    
     # 将目录结构转换为文件列表
     files = convert_directory_to_files(directory)
     
@@ -238,8 +300,8 @@ def main(args: argparse.Namespace):
                 if file_output_path.stat().st_size >= file_info["size"]:
                     continue
                 shutil.copy(file_output_path, download_temp_file)
-            else:
-                download_temp_file.write_bytes(b"")  # 确保文件存在
+            # else:
+            #     download_temp_file.write_bytes(b"")  # 确保文件存在
 
             # 打印正在下载的文件
             print(file_path)
@@ -258,20 +320,21 @@ def main(args: argparse.Namespace):
                 status_code = int(response_header.splitlines()[0].split()[1])
                 if status_code != 200:
                     continue
-
+            
             # 下载到临时文件
             try:
-                while download_temp_file.stat().st_size < file_info["size"]:
-                    try:
-                        fast_curl(url, save_to_file=download_temp_file, show_progress=True)
-                    except subprocess.CalledProcessError:
-                        # 如果下载失败，可能是网络问题或链接失效，重试下载
-                        pass
+                try:
+                    aria2c(url, save_to_file=file_output_path, show_progress=False)
+                    # shutil.move(download_temp_file, file_output_path)
+                except subprocess.CalledProcessError:
+                    # 如果下载失败，可能是网络问题或链接失效，重试下载
+                    pass
             except KeyboardInterrupt:
                 break
             finally:
                 # 将下载的文件移动到输出路径
-                shutil.move(download_temp_file, file_output_path)
+                # shutil.move(download_temp_file, file_output_path)
+                print(file_output_path)
 
 
 if __name__ == "__main__":
