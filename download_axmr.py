@@ -97,7 +97,7 @@ def aria2c(
     # temp_save_to_file = str(save_to_file).replace("/tmp/", "")
     temp_save_to_file = str(save_to_file)
     
-    cmd = [aria2c_path, "-x 8","--auto-file-renaming=false"]
+    cmd = [aria2c_path, "-x 2","--auto-file-renaming=false"]
 
     # If DoH URL is specified
     if doh_url:
