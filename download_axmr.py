@@ -72,6 +72,8 @@ def request_by_curl(
     # 如果提供了额外的 curl 参数，则添加到命令中
     if args:
         cmd.extend(args)
+
+    cmd.extend(["-H", "Accept-Language: zh-CN"])
     
     print(cmd)
 
@@ -128,6 +130,8 @@ def aria2c(
     # Add additional args
     if args:
         cmd.extend(args)
+
+    cmd.extend(["--header=\"Accept-Language: zh-CN;\""])
 
     cmd.append(url)
 
